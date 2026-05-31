@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Rentenrechner" />
+  <title>Entnahmeplan & Kapitalverzehr</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: #060f1a; }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 22px; height: 22px;
+      border-radius: 50%; background: #38bdf8; cursor: pointer;
+      box-shadow: 0 0 8px #38bdf880;
+    }
+    input[type=range]::-moz-range-thumb {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: #38bdf8; cursor: pointer; border: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo } = React;
+
+    const fmt = (v) =>
+      new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+
+    const fmtPct = (v) =>
+      new Intl.NumberFormat("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 2 }).format(v) + " %";
+
+    function Slider({ label, value, min, max, step, onChange, display }) {
+      return (
+        <div style={{ marginBottom: "1.4rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.4rem" }}>
+            <span style={{ fontSize: "0.78rem", letterSpacing: "0.08em", textTransform: "uppercase", color: "#8a9bb0" }}>{label}</span>
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "1rem", color: "#e8f0fe", fontWeight: 600 }}>{display(value)}</span>
+          </div>
+          <div style={{ position: "relative", height: "6px" }}>
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "#1e2d42", borderRadius: "3px" }} />
+            <div style={{
+              position: "absolute", top: 0, left: 0, bottom: 0,
+              width: `${((value - min) / (max - min)) * 100}%`,
+              background: "linear-gradient(90deg, #2563eb, #38bdf8)",
+              borderRadius: "3px", transition: "width 0.1s"
+            }} />
+            <input
+              type="range" min={min} max={max} step={step} value={value}
+              onChange={(e) => onChange(Number(e.target.value))}
+              style={{ position: "absolute", top: "-12px", left: 0, right: 0, width: "100%", opacity: 0, cursor: "pointer", height: "30px" }}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    function StatCard({ label, value, accent, small, green }) {
+      return (
+        <div style={{
+          background: accent ? "linear-gradient(135deg, #1a3a6e 0%, #0f2340 100%)"
+            : green ? "linear-gradient(135deg, #0f3a2a 0%, #071f17 100%)"
+            : "#0d1e30",
+          border: accent ? "1px solid #2563eb" : green ? "1px solid #22c55e" : "1px solid #1e2d42",
+          borderRadius: "12px", padding: "1rem 1.2rem",
+          flex: 1, minWidth: 0
+        }}>
+          <div style={{ fontSize: "0.7rem", letterSpacing: "0.1em", textTransform: "uppercase", color: "#6b83a0", marginBottom: "0.3rem" }}>{label}</div>
+          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: small ? "0.95rem" : "1.25rem", fontWeight: 700, color: accent ? "#38bdf8" : green ? "#22c55e" : "#e8f0fe" }}>{value}</div>
+        </div>
+      );
+    }
+
+    function SectionLabel({ children, color }) {
+      return (
+        <div style={{ fontSize: "0.68rem", letterSpacing: "0.15em", textTransform: "uppercase", color: color || "#2563eb", marginBottom: "0.75rem" }}>
+          {children}
+        </div>
+      );
+    }
+
+    function Toggle({ value, onChange, labelA, labelB }) {
+      return (
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          <span style={{ fontSize: "0.78rem", color: !value ? "#e8f0fe" : "#4a6080", fontWeight: !value ? 600 : 400, transition: "color 0.2s", flex: 1, textAlign: "right" }}>{labelA}</span>
+          <div
+            onClick={() => onChange(!value)}
+            style={{
+              width: "48px", height: "28px", borderRadius: "14px", cursor: "pointer",
+              background: value ? "linear-gradient(90deg, #22c55e, #16a34a)" : "linear-gradient(90deg, #2563eb, #38bdf8)",
+              position: "relative", transition: "background 0.3s", flexShrink: 0,
+              boxShadow: "0 0 8px rgba(37,99,235,0.4)"
+            }}
+          >
+            <div style={{
+              position: "absolute", top: "4px",
+              left: value ? "24px" : "4px",
+              width: "20px", height: "20px", borderRadius: "50%",
+              background: "#fff", transition: "left 0.25s cubic-bezier(.4,0,.2,1)",
+              boxShadow: "0 1px 4px rgba(0,0,0,0.4)"
+            }} />
+          </div>
+          <span style={{ fontSize: "0.78rem", color: value ? "#e8f0fe" : "#4a6080", fontWeight: value ? 600 : 400, transition: "color 0.2s", flex: 1 }}>{labelB}</span>
+        </div>
+      );
+    }
+
+    function App() {
+      const [kapital, setKapital] = useState(25840);
+      const [einzahlung, setEinzahlung] = useState(0);
+      const [einzahlungsDauer, setEinzahlungsDauer] = useState(5);
+      const [entnahme, setEntnahme] = useState(300);
+      const [entnahmeNachEinzahlung, setEntnahmeNachEinzahlung] = useState(false);
+      const [rendite, setRendite] = useState(7);
+      const [laufzeit, setLaufzeit] = useState(10);
+
+      const r = rendite / 100 / 12;
+      const n = laufzeit * 12;
+      const effEinzDauer = Math.min(einzahlungsDauer, laufzeit);
+      const nEin = effEinzDauer * 12;
+      const entnahmeOffset = (entnahmeNachEinzahlung && einzahlung > 0) ? nEin : 0;
+
+      const result = useMemo(() => {
+        const verlaufMonat = [];
+        let guthaben = kapital;
+        let aufgebrauchtMonat = null;
+
+        for (let m = 0; m <= n; m++) {
+          if (m > 0) {
+            guthaben = guthaben * (1 + r);
+            if (m <= nEin) guthaben += einzahlung;
+            if (m > entnahmeOffset) guthaben -= entnahme;
+          }
+          if (m % 12 === 0) verlaufMonat.push({ jahr: m / 12, betrag: guthaben });
+          if (guthaben <= 0 && m > 0 && aufgebrauchtMonat === null) aufgebrauchtMonat = m;
+        }
+
+        const restbetrag = guthaben;
+        const kapitalAufgebraucht = restbetrag <= 0;
+
+        let monate = aufgebrauchtMonat;
+        if (kapitalAufgebraucht && aufgebrauchtMonat === null) {
+          let g = kapital, m2 = 0;
+          while (g > 0 && m2 < 1200) {
+            g = g * (1 + r);
+            if (m2 < nEin) g += einzahlung;
+            if (m2 >= entnahmeOffset) g -= entnahme;
+            m2++;
+          }
+          monate = m2;
+        }
+
+        const entnahmeMonateEffektiv = Math.max(0, n - entnahmeOffset);
+        const gesamtEinzahlungen = einzahlung * nEin;
+        const gesamtEntnahmen = entnahme * entnahmeMonateEffektiv;
+        const gesamtInvestiert = kapital + gesamtEinzahlungen;
+        const zinsen = kapitalAufgebraucht ? null : Math.max(0, restbetrag + gesamtEntnahmen - gesamtInvestiert);
+
+        return { restbetrag, kapitalAufgebraucht, monate, verlauf: verlaufMonat, gesamtEntnahmen, gesamtEinzahlungen, gesamtInvestiert, zinsen };
+      }, [kapital, einzahlung, einzahlungsDauer, entnahme, entnahmeNachEinzahlung, rendite, laufzeit, r, n, nEin, entnahmeOffset]);
+
+      const maxBar = Math.max(...result.verlauf.map(v => Math.abs(v.betrag)), 1);
+
+      return (
+        <div style={{ minHeight: "100vh", background: "#060f1a", fontFamily: "'Inter', sans-serif", color: "#e8f0fe", padding: "2rem 1rem 3rem", paddingTop: "env(safe-area-inset-top, 2rem)" }}>
+          <div style={{ maxWidth: "640px", margin: "0 auto" }}>
+
+            {/* Header */}
+            <div style={{ marginBottom: "2rem" }}>
+              <div style={{ fontSize: "0.7rem", letterSpacing: "0.2em", textTransform: "uppercase", color: "#2563eb", marginBottom: "0.4rem" }}>Finanzrechner</div>
+              <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: "clamp(1.6rem, 6vw, 2.2rem)", fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.15 }}>
+                Entnahmeplan &amp; <span style={{ color: "#38bdf8" }}>Kapitalverzehr</span>
+              </h1>
+            </div>
+
+            {/* Basisparameter */}
+            <div style={{ background: "#0d1e30", border: "1px solid #1e2d42", borderRadius: "16px", padding: "1.5rem", marginBottom: "1rem" }}>
+              <SectionLabel>Basisparameter</SectionLabel>
+              <Slider label="Startkapital" value={kapital} min={0} max={1000000} step={1000} onChange={setKapital} display={fmt} />
+              <Slider label="Jährl. Rendite" value={rendite} min={0} max={15} step={0.1} onChange={setRendite} display={fmtPct} />
+              <Slider label="Laufzeit (Jahre)" value={laufzeit} min={1} max={40} step={1} onChange={setLaufzeit} display={(v) => `${v} J.`} />
+            </div>
+
+            {/* Einzahlungen */}
+            <div style={{ background: "#0d1e30", border: "1px solid #1a3a2a", borderRadius: "16px", padding: "1.5rem", marginBottom: "1rem" }}>
+              <SectionLabel color="#22c55e">↑ Monatliche Einzahlungen</SectionLabel>
+              <Slider label="Einzahlung / Monat" value={einzahlung} min={0} max={5000} step={50} onChange={setEinzahlung} display={fmt} />
+              <Slider
+                label={`Einzahlungsdauer${einzahlungsDauer > laufzeit ? " (auf Laufzeit begrenzt)" : ""}`}
+                value={einzahlungsDauer} min={1} max={40} step={1}
+                onChange={setEinzahlungsDauer} display={(v) => `${Math.min(v, laufzeit)} J.`}
+              />
+            </div>
+
+            {/* Entnahmen */}
+            <div style={{ background: "#0d1e30", border: "1px solid #3a1e1e", borderRadius: "16px", padding: "1.5rem", marginBottom: "1.5rem" }}>
+              <SectionLabel color="#f87171">↓ Monatliche Entnahmen</SectionLabel>
+              <Slider label="Entnahme / Monat" value={entnahme} min={0} max={5000} step={50} onChange={setEntnahme} display={fmt} />
+              <div style={{
+                marginTop: "0.5rem", padding: "0.85rem 1rem",
+                background: "#060f1a", borderRadius: "10px", border: "1px solid #1e2d42",
+                opacity: einzahlung === 0 ? 0.4 : 1, transition: "opacity 0.2s"
+              }}>
+                <Toggle
+                  value={entnahmeNachEinzahlung}
+                  onChange={einzahlung > 0 ? setEntnahmeNachEinzahlung : () => {}}
+                  labelA="Sofort starten"
+                  labelB={`Ab Jahr ${effEinzDauer}`}
+                />
+                {entnahmeNachEinzahlung && einzahlung > 0 && (
+                  <div style={{ fontSize: "0.7rem", color: "#6b83a0", marginTop: "0.6rem", textAlign: "center" }}>
+                    Entnahme läuft {laufzeit - effEinzDauer} J. · Einzahlung läuft {effEinzDauer} J.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Stats */}
+            <div style={{ display: "flex", gap: "0.75rem", marginBottom: "0.75rem", flexWrap: "wrap" }}>
+              <StatCard label="Gesamt investiert" value={fmt(result.gesamtInvestiert)} />
+              <StatCard label="Gesamtentnahmen" value={fmt(result.gesamtEntnahmen)} />
+            </div>
+            <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
+              <StatCard
+                label={result.kapitalAufgebraucht ? "⚠ Aufgebraucht nach" : "Restbetrag nach Laufzeit"}
+                value={result.kapitalAufgebraucht
+                  ? `${result.monate ?? ">"} Mon. (${((result.monate ?? n) / 12).toFixed(1)} J.)`
+                  : fmt(result.restbetrag)}
+                accent={!result.kapitalAufgebraucht}
+                small={result.kapitalAufgebraucht}
+              />
+              {!result.kapitalAufgebraucht && result.zinsen !== null && (
+                <StatCard label="Zinserträge kumuliert" value={fmt(result.zinsen)} green />
+              )}
+            </div>
+
+            {/* Chart */}
+            <div style={{ background: "#0d1e30", border: "1px solid #1e2d42", borderRadius: "16px", padding: "1.5rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                <div style={{ fontSize: "0.7rem", letterSpacing: "0.1em", textTransform: "uppercase", color: "#6b83a0" }}>Kapitalverlauf</div>
+                <div style={{ display: "flex", gap: "0.6rem", fontSize: "0.65rem", flexWrap: "wrap" }}>
+                  {einzahlung > 0 && <span style={{ color: "#22c55e" }}>▪ Einzahlung</span>}
+                  {einzahlung > 0 && entnahmeNachEinzahlung && <span style={{ color: "#a78bfa" }}>▪ Ansparphase</span>}
+                  <span style={{ color: "#2563eb" }}>▪ Entnahme</span>
+                  <span style={{ color: "#ef4444" }}>▪ Aufgebraucht</span>
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: "3px", height: "140px" }}>
+                {result.verlauf.map((d, i) => {
+                  const isNeg = d.betrag < 0;
+                  const h = Math.abs(d.betrag) / maxBar * 100;
+                  const inEinz = einzahlung > 0 && d.jahr <= effEinzDauer;
+                  const inWarte = entnahmeNachEinzahlung && einzahlung > 0 && d.jahr <= effEinzDauer;
+                  const color = isNeg ? "#ef4444"
+                    : inWarte ? "linear-gradient(180deg,#a78bfa,#6d28d9)"
+                    : inEinz ? "linear-gradient(180deg,#22c55e,#166534)"
+                    : i === result.verlauf.length - 1 && !result.kapitalAufgebraucht
+                      ? "linear-gradient(180deg,#38bdf8,#2563eb)"
+                      : "linear-gradient(180deg,#2563eb88,#1e3a5f)";
+                  return (
+                    <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", height: "100%" }}>
+                      <div style={{ flex: 1, display: "flex", alignItems: "flex-end", width: "100%" }}>
+                        <div style={{ width: "100%", height: `${Math.max(h, 1)}%`, background: color, borderRadius: "3px 3px 0 0", transition: "height 0.3s ease" }} />
+                      </div>
+                      <div style={{ fontSize: "0.55rem", color: "#4a6080", marginTop: "4px" }}>{d.jahr}J</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{ marginTop: "1rem", fontSize: "0.72rem", color: "#4a6080", lineHeight: 1.6, borderTop: "1px solid #1e2d42", paddingTop: "0.75rem" }}>
+              Vor Steuern. Nach Abgeltungsteuer (26,375 % inkl. Soli) entspricht 7 % netto ca. 9,5 % Bruttorendite. Freibetrag 1.000 €/Jahr nicht eingerechnet.
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
