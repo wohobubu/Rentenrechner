@@ -195,7 +195,7 @@
               <Slider label="Einzahlung / Monat" value={einzahlung} min={0} max={10000} step={100} onChange={setEinzahlung} display={fmt} />
               <Slider
                 label={`Einzahlungsdauer${einzahlungsDauer > laufzeit ? " (auf Laufzeit begrenzt)" : ""}`}
-                value={einzahlungsDauer} min={1} max={40} step={1}
+                value={einzahlungsDauer} min={1} max={80} step={1}
                 onChange={setEinzahlungsDauer} display={(v) => `${Math.min(v, laufzeit)} J.`}
               />
             </div>
