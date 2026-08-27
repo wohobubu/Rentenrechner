@@ -192,7 +192,7 @@
             {/* Einzahlungen */}
             <div style={{ background: "#0d1e30", border: "1px solid #1a3a2a", borderRadius: "16px", padding: "1.5rem", marginBottom: "1rem" }}>
               <SectionLabel color="#22c55e">↑ Monatliche Einzahlungen</SectionLabel>
-              <Slider label="Einzahlung / Monat" value={einzahlung} min={0} max={10000} step={50} onChange={setEinzahlung} display={fmt} />
+              <Slider label="Einzahlung / Monat" value={einzahlung} min={0} max={10000} step={100} onChange={setEinzahlung} display={fmt} />
               <Slider
                 label={`Einzahlungsdauer${einzahlungsDauer > laufzeit ? " (auf Laufzeit begrenzt)" : ""}`}
                 value={einzahlungsDauer} min={1} max={40} step={1}
